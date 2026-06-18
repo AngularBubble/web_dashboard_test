@@ -111,7 +111,7 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
     }
     err = esp_wifi_start();
     if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to set wifi config: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Failed to start wifi: %s", esp_err_to_name(err));
         esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
         esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
         esp_wifi_deinit();
