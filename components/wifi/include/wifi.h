@@ -2,6 +2,8 @@
 #define WIFI_H
 
 #include "esp_wifi.h"
+#include <nvs_flash.h>
+#include "esp_log.h"
 
 #if __cplusplus
 extern "C"
