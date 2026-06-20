@@ -1,0 +1,36 @@
+{
+    "wifi":[
+        {
+            "ssid": "GABRIEL",
+            "password": "Master1357@"
+        },
+        {
+            "ssid": "Lima_Araujo",
+            "password": "Master1357"
+        },
+        {
+            "ssid": "",
+            "password": ""
+        },
+        {
+            "ssid": "",
+            "password": ""
+        },
+        {
+            "ssid": "",
+            "password": ""
+        },
+        {
+            "ssid": "",
+            "password": ""
+        },
+        {
+            "ssid": "",
+            "password": ""
+        },
+        {
+            "ssid": "",
+            "password": ""
+        }
+    ]
+}

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "wifi.h"
 
-#define DEFAULT_SCAN_LIST_SIZE 20
+#define SCAN_LIST_SIZE 20
 #define CHANNEL_LIST_SIZE 3
 static uint8_t channel_list[CHANNEL_LIST_SIZE] = {1, 6, 11};
 
@@ -72,6 +72,7 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         ESP_LOGI(TAG, "OK");
     }
 
+    ESP_LOGI(TAG, "Creating event loop...");
     err = esp_event_loop_create_default();
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to create event loop: %s", esp_err_to_name(err));
@@ -79,8 +80,11 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         esp_netif_deinit();
         nvs_flash_deinit();
         return err;
+    }else{
+        ESP_LOGI(TAG, "OK");
     }
 
+    ESP_LOGI(TAG, "Initializing wifi...");
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
     if(err != ESP_OK){
@@ -90,8 +94,11 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         esp_netif_deinit();
         nvs_flash_deinit();
         return err;
+    }else{
+        ESP_LOGI(TAG, "OK");
     }
 
+    ESP_LOGI(TAG, "Registering wifi event handler...");
     err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to register wifi event handler: %s", esp_err_to_name(err));
@@ -101,7 +108,11 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         esp_netif_deinit();
         nvs_flash_deinit();
         return err;
+    }else{
+        ESP_LOGI(TAG, "OK");    
     }
+
+    ESP_LOGI(TAG, "Registering ip event handler...");
     err = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to register ip event handler: %s", esp_err_to_name(err));
@@ -112,12 +123,27 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         esp_netif_deinit();
         nvs_flash_deinit();
         return err;
+    }else{
+        ESP_LOGI(TAG, "OK");   
     }
-    // Initialize default station as network interface instance (esp-netif)
+
+    ESP_LOGI(TAG, "Creating wifi station object...");
     esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
-    assert(sta_netif);
+    if(sta_netif == NULL){
+        ESP_LOGE(TAG, "Failed to create wifi station object: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_vfs_littlefs_unregister("web_data");
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return ESP_ERR_NO_MEM;
+    }else{
+        ESP_LOGI(TAG, "OK");   
+    }
 
-
+    ESP_LOGI(TAG, "Setting wifi mode...");
     err = esp_wifi_set_mode(WIFI_MODE_STA);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to set wifi mode: %s", esp_err_to_name(err));
@@ -129,8 +155,11 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         esp_netif_deinit();
         nvs_flash_deinit();
         return err;
+    }else{
+        ESP_LOGI(TAG, "OK");   
     }
 
+    ESP_LOGI(TAG, "Starting wifi...");
     err = esp_wifi_start();
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to start wifi: %s", esp_err_to_name(err));
@@ -142,32 +171,84 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         esp_netif_deinit();
         nvs_flash_deinit();
         return err;
+    }else{
+        ESP_LOGI(TAG, "OK");   
     }
 
-    uint16_t number = DEFAULT_SCAN_LIST_SIZE;
-    wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];
+    uint16_t number = SCAN_LIST_SIZE;
+    wifi_ap_record_t ap_info[SCAN_LIST_SIZE];
     uint16_t ap_count = 0;
     memset(ap_info, 0, sizeof(ap_info));
     
+    ESP_LOGI(TAG, "Allocating memory for scan config...");
     wifi_scan_config_t *scan_config = (wifi_scan_config_t *)calloc(1,sizeof(wifi_scan_config_t));
     if (!scan_config) {
-        ESP_LOGE(TAG, "Memory Allocation for scan config failed!");
+        ESP_LOGE(TAG, "Memory allocation for scan config failed!");
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_vfs_littlefs_unregister("web_data");
+        esp_netif_deinit();
+        nvs_flash_deinit();
         return ESP_ERR_NO_MEM;
+    }else{
+        ESP_LOGI(TAG, "OK");   
     }
+
     array_2_channel_bitmap(channel_list, CHANNEL_LIST_SIZE, scan_config);
-    esp_wifi_scan_start(scan_config, true);
+    ESP_LOGI(TAG, "Starting wifi scan...");
+    err = esp_wifi_scan_start(scan_config, true);
+    if (err == ESP_OK) {
+        ESP_LOGE(TAG, "Failet to start wifi scan: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_vfs_littlefs_unregister("web_data");
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }else{
+        ESP_LOGI(TAG, "OK");   
+    }
     free(scan_config);
 
     ESP_LOGI(TAG, "Max AP number ap_info can hold = %u", number);
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
-    ESP_LOGI(TAG, "Total APs scanned = %u, actual AP number ap_info holds = %u", ap_count, number);
-    
-    for (int i = 0; i < number; i++) {
-        ESP_LOGI(TAG, "SSID \t\t%s", ap_info[i].ssid);
-        ESP_LOGI(TAG, "RSSI \t\t%d", ap_info[i].rssi);
-        ESP_LOGI(TAG, "Channel \t\t%d", ap_info[i].primary);
+
+    ESP_LOGI(TAG, "Getting number of access points found...");
+    err = esp_wifi_scan_get_ap_num(&ap_count);
+    if(err == ESP_OK){
+        ESP_LOGE(TAG, "Failet to get number of access points: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_vfs_littlefs_unregister("web_data");
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }else{
+        ESP_LOGI(TAG, "OK");   
     }
+
+    ESP_LOGI(TAG, "Getting access points lists...");
+    err = esp_wifi_scan_get_ap_records(&number, ap_info);
+    if(err == ESP_OK){
+        ESP_LOGE(TAG, "Failet to get the list of access points: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_vfs_littlefs_unregister("web_data");
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }else{
+        ESP_LOGI(TAG, "OK");   
+    }
+
+    ESP_LOGI(TAG, "Total APs scanned = %u, actual AP number ap_info holds = %u", ap_count, number);
 
     wifi_config_t wifi_config = {
         .sta = {
@@ -178,6 +259,40 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
             .threshold.rssi_5g_adjustment = 0,
         },
     };
+
+    ESP_LOGI(TAG, "Trying to open wifi list file...");
+    FILE *f = fopen("/web_files/wifi_list.json", "r");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Error: Unable to open the file.");
+        ESP_LOGI(TAG, "Loading default SSID and Password...");
+        //ainda a fazer
+    }else{
+        ESP_LOGI(TAG, "OK");
+
+        ESP_LOGI(TAG, "Trying to allocate memory for file buffer...");
+        fseek(f, 0, SEEK_END);
+        long string_size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        char *buffer = malloc(string_size + 1);
+        if(!buffer){
+            ESP_LOGE(TAG, "Memory allocation failed for file buffer.");
+            fclose(f);
+            return ESP_ERR_NO_MEM;
+        }else{
+            ESP_LOGI(TAG, "OK");
+        }
+        
+        int len = fread(buffer, 1, sizeof(buffer), f);
+        fclose(f);
+        
+        for (int i = 0; i < number; i++) {
+            ESP_LOGI(TAG, "SSID \t\t%s", ap_info[i].ssid);
+            ESP_LOGI(TAG, "RSSI \t\t%d", ap_info[i].rssi);
+            ESP_LOGI(TAG, "Channel \t\t%d", ap_info[i].primary);
+            //ainda a fazer
+        }
+    }
+
     strcpy((char*)wifi_config.sta.ssid, (char*)ssid);
     strcpy((char*)wifi_config.sta.password, (char*)password);
     

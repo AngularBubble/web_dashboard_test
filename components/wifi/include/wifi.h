@@ -5,6 +5,7 @@
 #include <nvs_flash.h>
 #include "esp_log.h"
 #include "esp_littlefs.h"
+#include "cJSON.h"
 
 #if __cplusplus
 extern "C"
