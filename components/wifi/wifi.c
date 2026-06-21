@@ -429,7 +429,7 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         cJSON_Delete(json);
     }
 
-
+    ESP_LOGI(TAG,"Trying to configure wifi sta...");
     err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to set wifi config: %s", esp_err_to_name(err));
@@ -441,8 +441,12 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         esp_netif_deinit();
         nvs_flash_deinit();
         return err;
+    }else{
+        ESP_LOGI(TAG,"OK");
     }
 
-    ESP_LOGI(TAG, "Wifi Started successfully!");
+    ESP_LOGI(TAG, "Connecting to wifi...");
+    esp_wifi_connect();
+    
     return ESP_OK;
 }
