@@ -3,6 +3,10 @@
 
 #define SCAN_LIST_SIZE 20
 #define CHANNEL_LIST_SIZE 3
+
+#define DEFAULT_SSID "GABRIEL"
+#define DEFAULT_PASSWORD "Master1357@"
+
 static uint8_t channel_list[CHANNEL_LIST_SIZE] = {1, 6, 11};
 
 static const char *TAG = "WIFI";
@@ -199,7 +203,7 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
     array_2_channel_bitmap(channel_list, CHANNEL_LIST_SIZE, scan_config);
     ESP_LOGI(TAG, "Starting wifi scan...");
     err = esp_wifi_scan_start(scan_config, true);
-    if (err == ESP_OK) {
+    if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failet to start wifi scan: %s", esp_err_to_name(err));
         esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
         esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
@@ -218,7 +222,7 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
 
     ESP_LOGI(TAG, "Getting number of access points found...");
     err = esp_wifi_scan_get_ap_num(&ap_count);
-    if(err == ESP_OK){
+    if(err != ESP_OK){
         ESP_LOGE(TAG, "Failet to get number of access points: %s", esp_err_to_name(err));
         esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
         esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
@@ -234,7 +238,7 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
 
     ESP_LOGI(TAG, "Getting access points lists...");
     err = esp_wifi_scan_get_ap_records(&number, ap_info);
-    if(err == ESP_OK){
+    if(err != ESP_OK){
         ESP_LOGE(TAG, "Failet to get the list of access points: %s", esp_err_to_name(err));
         esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
         esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
@@ -265,7 +269,8 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
     if (f == NULL) {
         ESP_LOGE(TAG, "Error: Unable to open the file.");
         ESP_LOGI(TAG, "Loading default SSID and Password...");
-        //ainda a fazer
+        strcpy((char*)wifi_config.sta.ssid, DEFAULT_SSID);
+        strcpy((char*)wifi_config.sta.password, DEFAULT_PASSWORD);
     }else{
         ESP_LOGI(TAG, "OK");
 
@@ -277,25 +282,154 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         if(!buffer){
             ESP_LOGE(TAG, "Memory allocation failed for file buffer.");
             fclose(f);
+            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+            esp_wifi_deinit();
+            esp_event_loop_delete_default();
+            esp_vfs_littlefs_unregister("web_data");
+            esp_netif_deinit();
+            nvs_flash_deinit();
             return ESP_ERR_NO_MEM;
         }else{
             ESP_LOGI(TAG, "OK");
         }
         
-        int len = fread(buffer, 1, sizeof(buffer), f);
+        ESP_LOGI(TAG,"Trying to pass text in file do buffer...");
+        int len = fread(buffer, 1, string_size, f);
+        if(len != string_size){
+            ESP_LOGE(TAG,"Failed to pass text to buffer.");
+            fclose(f);
+            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+            esp_wifi_deinit();
+            esp_event_loop_delete_default();
+            esp_vfs_littlefs_unregister("web_data");
+            esp_netif_deinit();
+            nvs_flash_deinit();
+            return ESP_ERR_INVALID_RESPONSE;
+        }else{
+            ESP_LOGI(TAG, "OK");
+        }
         fclose(f);
+
+        buffer[len] = '\0';
         
+        ESP_LOGI(TAG, "Trying to convert buffer to cJson type...");
+        cJSON *json = cJSON_Parse(buffer);
+        if (json == NULL) {
+            const char *error_ptr = cJSON_GetErrorPtr();
+            if (error_ptr != NULL) {
+                ESP_LOGE(TAG,"Failed to convert buffer at: %s", error_ptr);
+            }
+            free(buffer);
+            cJSON_Delete(json);
+            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+            esp_wifi_deinit();
+            esp_event_loop_delete_default();
+            esp_vfs_littlefs_unregister("web_data");
+            esp_netif_deinit();
+            nvs_flash_deinit();
+            return ESP_ERR_INVALID_RESPONSE;
+        }else{
+            ESP_LOGI(TAG, "OK");
+        }
+
+        free(buffer);
+
+        ESP_LOGI(TAG, "Trying to get wifi list in json file...");
+        cJSON *wifi_list = cJSON_GetObjectItem(json,"wifi");
+        if(wifi_list == NULL){
+            ESP_LOGE(TAG,"Failed to get wifi list.");
+            cJSON_Delete(wifi_list);
+            cJSON_Delete(json);
+            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+            esp_wifi_deinit();
+            esp_event_loop_delete_default();
+            esp_vfs_littlefs_unregister("web_data");
+            esp_netif_deinit();
+            nvs_flash_deinit();
+            return ESP_ERR_INVALID_RESPONSE;
+        }else{
+            ESP_LOGI(TAG, "OK");
+        }
+
+        ESP_LOGI(TAG,"Iterating over wifi ap and wifi list");
+        ESP_LOGI(TAG,"____________________________________");
+        bool achouWifi = false;
         for (int i = 0; i < number; i++) {
+
             ESP_LOGI(TAG, "SSID \t\t%s", ap_info[i].ssid);
             ESP_LOGI(TAG, "RSSI \t\t%d", ap_info[i].rssi);
             ESP_LOGI(TAG, "Channel \t\t%d", ap_info[i].primary);
-            //ainda a fazer
+
+            for(int j = 0; j < cJSON_GetArraySize(wifi_list); j++){
+                cJSON *wifi_item = cJSON_GetArrayItem(wifi_list, j);
+                if(wifi_item == NULL){
+                    ESP_LOGE(TAG,"Failed to iterate over wifi list.");
+                    cJSON_Delete(json);
+                    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+                    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+                    esp_wifi_deinit();
+                    esp_event_loop_delete_default();
+                    esp_vfs_littlefs_unregister("web_data");
+                    esp_netif_deinit();
+                    nvs_flash_deinit();
+                    return ESP_ERR_INVALID_RESPONSE;
+                }
+
+                cJSON *ssid = cJSON_GetObjectItemCaseSensitive(wifi_item, "ssid");
+                if (!(cJSON_IsString(ssid) && (ssid->valuestring != NULL))) {
+                    ESP_LOGE(TAG,"Failed to get wifi ssid name.");
+                    cJSON_Delete(json);
+                    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+                    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+                    esp_wifi_deinit();
+                    esp_event_loop_delete_default();
+                    esp_vfs_littlefs_unregister("web_data");
+                    esp_netif_deinit();
+                    nvs_flash_deinit();
+                    return ESP_ERR_INVALID_RESPONSE;
+                }
+                cJSON *password = cJSON_GetObjectItemCaseSensitive(wifi_item, "password");
+                if (!(cJSON_IsString(password) && (password->valuestring != NULL))) {
+                    ESP_LOGE(TAG,"Failed to get wifi password.");
+                    cJSON_Delete(json);
+                    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+                    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+                    esp_wifi_deinit();
+                    esp_event_loop_delete_default();
+                    esp_vfs_littlefs_unregister("web_data");
+                    esp_netif_deinit();
+                    nvs_flash_deinit();
+                    return ESP_ERR_INVALID_RESPONSE;
+                }
+
+                if(strcmp((char*) ap_info[i].ssid, ssid->valuestring) == 0){
+                    achouWifi = true;
+                    ESP_LOGI(TAG,"____________________________________");
+                    ESP_LOGI(TAG,"Found ssid match!");
+                    strcpy((char*)wifi_config.sta.ssid, ssid->valuestring);
+                    strcpy((char*)wifi_config.sta.password, password->valuestring);
+                    break;
+                }
+
+            }
+            if(achouWifi){
+                break;
+            }
         }
+        if(!achouWifi){
+            ESP_LOGI(TAG,"____________________________________");
+            ESP_LOGI(TAG,"Could not find ssid match, loading default configurations");
+            strcpy((char*)wifi_config.sta.ssid, DEFAULT_SSID);
+            strcpy((char*)wifi_config.sta.password, DEFAULT_PASSWORD);
+        }
+        cJSON_Delete(json);
     }
 
-    strcpy((char*)wifi_config.sta.ssid, (char*)ssid);
-    strcpy((char*)wifi_config.sta.password, (char*)password);
-    
+
     err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to set wifi config: %s", esp_err_to_name(err));
