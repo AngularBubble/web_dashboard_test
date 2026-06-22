@@ -30,28 +30,141 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
-
-    ESP_LOGI(TAG, "Initializing nvs flash...");
+esp_err_t wifi_init()
+{
+    ESP_LOGI(TAG, "Initializing wifi component...");
     esp_err_t err = nvs_flash_init();
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to init nvs flash: %s", esp_err_to_name(err));
         
         return err;
-    }else{
-        ESP_LOGI(TAG, "OK");
     }
 
-    ESP_LOGI(TAG, "Initializing netif...");
     err = esp_netif_init();
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to init Netif: %s", esp_err_to_name(err));
         nvs_flash_deinit();
         return err;
-    }else{
-        ESP_LOGI(TAG, "OK");
     }
 
+    err = esp_event_loop_create_default();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to create event loop: %s", esp_err_to_name(err));
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    err = esp_wifi_init(&cfg);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to init wifi: %s", esp_err_to_name(err));
+        esp_event_loop_delete_default();
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }
+
+    err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to register wifi event handler: %s", esp_err_to_name(err));
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }
+
+    err = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to register ip event handler: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }
+
+    esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
+    if(sta_netif == NULL){
+        ESP_LOGE(TAG, "Failed to create wifi station object: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return ESP_ERR_NO_MEM;
+    }
+
+    err = esp_wifi_set_mode(WIFI_MODE_STA);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to set wifi mode: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }
+
+    err = esp_wifi_start();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to start wifi: %s", esp_err_to_name(err));
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+        esp_wifi_deinit();
+        esp_event_loop_delete_default();
+        esp_netif_deinit();
+        nvs_flash_deinit();
+        return err;
+    }
+
+    ESP_LOGI(TAG, "OK");   
+    return ESP_OK;
+}
+
+esp_err_t wifi_deinit(){
+    esp_err_t err = esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to unregister IP event: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to unregister wifi event: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = esp_wifi_deinit();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to deinit wifi: %s", esp_err_to_name(err));
+        return err;
+    }
+    err = esp_event_loop_delete_default();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to delete event loop: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    esp_netif_deinit();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to deinit netif: %s", esp_err_to_name(err));
+        return err;
+    }
+    nvs_flash_deinit();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to deinit nvs flash: %s", esp_err_to_name(err));
+        return err;
+    }
+}
+
+esp_err_t littlefs_sta(){
+
+    ESP_LOGI(TAG, "Starting littlefs...");
     esp_vfs_littlefs_conf_t conf = {
         .base_path = "/web_files",
         .partition_label = "web_data",
@@ -59,8 +172,7 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         .dont_mount = false,
     };
 
-    ESP_LOGI(TAG, "Initializing littlefs...");
-    err = esp_vfs_littlefs_register(&conf);
+    esp_err_t err = esp_vfs_littlefs_register(&conf);
     if (err != ESP_OK) {
         if (err == ESP_FAIL) {
             ESP_LOGE(TAG, "Failed to mount or format filesystem");
@@ -69,115 +181,22 @@ esp_err_t wifi_sta(uint8_t ssid[32], uint8_t password[64]){
         } else {
             ESP_LOGE(TAG, "Failed to initialize LittleFS (%s)", esp_err_to_name(err));
         }
-        esp_netif_deinit();
-        nvs_flash_deinit();
         return err;
     }else{
         ESP_LOGI(TAG, "OK");
     }
 
-    ESP_LOGI(TAG, "Creating event loop...");
-    err = esp_event_loop_create_default();
+    return ESP_OK;
+}
+esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
+
+    esp_err_t err = wifi_sta();
     if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to create event loop: %s", esp_err_to_name(err));
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
+        ESP_LOGE(TAG, "Failed to initialize wifi");
         return err;
-    }else{
-        ESP_LOGI(TAG, "OK");
     }
 
-    ESP_LOGI(TAG, "Initializing wifi...");
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    err = esp_wifi_init(&cfg);
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to init wifi: %s", esp_err_to_name(err));
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
-        return err;
-    }else{
-        ESP_LOGI(TAG, "OK");
-    }
-
-    ESP_LOGI(TAG, "Registering wifi event handler...");
-    err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL);
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to register wifi event handler: %s", esp_err_to_name(err));
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
-        return err;
-    }else{
-        ESP_LOGI(TAG, "OK");    
-    }
-
-    ESP_LOGI(TAG, "Registering ip event handler...");
-    err = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL);
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to register ip event handler: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
-        return err;
-    }else{
-        ESP_LOGI(TAG, "OK");   
-    }
-
-    ESP_LOGI(TAG, "Creating wifi station object...");
-    esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
-    if(sta_netif == NULL){
-        ESP_LOGE(TAG, "Failed to create wifi station object: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
-        return ESP_ERR_NO_MEM;
-    }else{
-        ESP_LOGI(TAG, "OK");   
-    }
-
-    ESP_LOGI(TAG, "Setting wifi mode...");
-    err = esp_wifi_set_mode(WIFI_MODE_STA);
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to set wifi mode: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
-        return err;
-    }else{
-        ESP_LOGI(TAG, "OK");   
-    }
-
-    ESP_LOGI(TAG, "Starting wifi...");
-    err = esp_wifi_start();
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to start wifi: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
-        return err;
-    }else{
-        ESP_LOGI(TAG, "OK");   
-    }
+    err = littlefs_sta();
 
     uint16_t number = SCAN_LIST_SIZE;
     wifi_ap_record_t ap_info[SCAN_LIST_SIZE];

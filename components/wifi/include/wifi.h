@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_littlefs.h"
 #include "cJSON.h"
+#include "mdns.h"
 
 #if __cplusplus
 extern "C"
@@ -17,7 +18,7 @@ extern "C"
  * @param password is the password of the network trying to be conected to.
  * @return ESP_OK if successful, otherwise an error code.
 **/
-esp_err_t wifi_sta(
+esp_err_t init_network_functions(
     uint8_t ssid[32], 
     uint8_t password[64]);
 
