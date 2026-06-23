@@ -6,21 +6,16 @@
 #include "esp_log.h"
 #include "esp_littlefs.h"
 #include "cJSON.h"
-#include "mdns.h"
 
 #if __cplusplus
 extern "C"
 {
 #endif
 
-/** @brief Initialize and tries to start Wifi.
- * @param ssid is the ssid of the network trying to be conected to.
- * @param password is the password of the network trying to be conected to.
+/** @brief Initialize and tries to connect to Wifi AP using wifi_list file.
  * @return ESP_OK if successful, otherwise an error code.
 **/
-esp_err_t init_network_functions(
-    uint8_t ssid[32], 
-    uint8_t password[64]);
+esp_err_t wifi_connect();
 
 #if __cplusplus
 }

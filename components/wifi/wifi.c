@@ -30,7 +30,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t wifi_init()
+esp_err_t init_wifi()
 {
     ESP_LOGI(TAG, "Initializing wifi component...");
     esp_err_t err = nvs_flash_init();
@@ -126,7 +126,8 @@ esp_err_t wifi_init()
     return ESP_OK;
 }
 
-esp_err_t wifi_deinit(){
+esp_err_t deinit_wifi()
+{
     esp_err_t err = esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failer to unregister IP event: %s", esp_err_to_name(err));
@@ -160,10 +161,12 @@ esp_err_t wifi_deinit(){
         ESP_LOGE(TAG, "Failer to deinit nvs flash: %s", esp_err_to_name(err));
         return err;
     }
+
+    return ESP_OK;
 }
 
-esp_err_t littlefs_sta(){
-
+esp_err_t init_littlefs()
+{
     ESP_LOGI(TAG, "Starting littlefs...");
     esp_vfs_littlefs_conf_t conf = {
         .base_path = "/web_files",
@@ -182,21 +185,36 @@ esp_err_t littlefs_sta(){
             ESP_LOGE(TAG, "Failed to initialize LittleFS (%s)", esp_err_to_name(err));
         }
         return err;
-    }else{
-        ESP_LOGI(TAG, "OK");
+    }
+
+    ESP_LOGI(TAG, "OK");
+    return ESP_OK;
+}
+
+esp_err_t deinit_littlefs()
+{
+    esp_err_t err = esp_vfs_littlefs_unregister("web_data");
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to unmount littlefs: %s", esp_err_to_name(err));
+        return err;
     }
 
     return ESP_OK;
 }
-esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
 
-    esp_err_t err = wifi_sta();
+esp_err_t wifi_connect()
+{
+    esp_err_t err = init_wifi();
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to initialize wifi");
         return err;
     }
 
-    err = littlefs_sta();
+    err = init_littlefs();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to initialize littlefs");
+        return err;
+    }
 
     uint16_t number = SCAN_LIST_SIZE;
     wifi_ap_record_t ap_info[SCAN_LIST_SIZE];
@@ -207,13 +225,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
     wifi_scan_config_t *scan_config = (wifi_scan_config_t *)calloc(1,sizeof(wifi_scan_config_t));
     if (!scan_config) {
         ESP_LOGE(TAG, "Memory allocation for scan config failed!");
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
+        deinit_wifi();
+        deinit_littlefs();
         return ESP_ERR_NO_MEM;
     }else{
         ESP_LOGI(TAG, "OK");   
@@ -224,13 +237,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
     err = esp_wifi_scan_start(scan_config, true);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failet to start wifi scan: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
+        deinit_wifi();
+        deinit_littlefs();
         return err;
     }else{
         ESP_LOGI(TAG, "OK");   
@@ -243,13 +251,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
     err = esp_wifi_scan_get_ap_num(&ap_count);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failet to get number of access points: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
+        deinit_wifi();
+        deinit_littlefs();
         return err;
     }else{
         ESP_LOGI(TAG, "OK");   
@@ -259,13 +262,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
     err = esp_wifi_scan_get_ap_records(&number, ap_info);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failet to get the list of access points: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
+        deinit_wifi();
+        deinit_littlefs();
         return err;
     }else{
         ESP_LOGI(TAG, "OK");   
@@ -301,13 +299,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
         if(!buffer){
             ESP_LOGE(TAG, "Memory allocation failed for file buffer.");
             fclose(f);
-            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-            esp_wifi_deinit();
-            esp_event_loop_delete_default();
-            esp_vfs_littlefs_unregister("web_data");
-            esp_netif_deinit();
-            nvs_flash_deinit();
+            deinit_wifi();
+            deinit_littlefs();
             return ESP_ERR_NO_MEM;
         }else{
             ESP_LOGI(TAG, "OK");
@@ -318,13 +311,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
         if(len != string_size){
             ESP_LOGE(TAG,"Failed to pass text to buffer.");
             fclose(f);
-            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-            esp_wifi_deinit();
-            esp_event_loop_delete_default();
-            esp_vfs_littlefs_unregister("web_data");
-            esp_netif_deinit();
-            nvs_flash_deinit();
+            deinit_wifi();
+            deinit_littlefs();
             return ESP_ERR_INVALID_RESPONSE;
         }else{
             ESP_LOGI(TAG, "OK");
@@ -342,13 +330,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
             }
             free(buffer);
             cJSON_Delete(json);
-            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-            esp_wifi_deinit();
-            esp_event_loop_delete_default();
-            esp_vfs_littlefs_unregister("web_data");
-            esp_netif_deinit();
-            nvs_flash_deinit();
+            deinit_wifi();
+            deinit_littlefs();
             return ESP_ERR_INVALID_RESPONSE;
         }else{
             ESP_LOGI(TAG, "OK");
@@ -362,13 +345,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
             ESP_LOGE(TAG,"Failed to get wifi list.");
             cJSON_Delete(wifi_list);
             cJSON_Delete(json);
-            esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-            esp_wifi_deinit();
-            esp_event_loop_delete_default();
-            esp_vfs_littlefs_unregister("web_data");
-            esp_netif_deinit();
-            nvs_flash_deinit();
+            deinit_wifi();
+            deinit_littlefs();
             return ESP_ERR_INVALID_RESPONSE;
         }else{
             ESP_LOGI(TAG, "OK");
@@ -388,13 +366,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
                 if(wifi_item == NULL){
                     ESP_LOGE(TAG,"Failed to iterate over wifi list.");
                     cJSON_Delete(json);
-                    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-                    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-                    esp_wifi_deinit();
-                    esp_event_loop_delete_default();
-                    esp_vfs_littlefs_unregister("web_data");
-                    esp_netif_deinit();
-                    nvs_flash_deinit();
+                    deinit_wifi();
+                    deinit_littlefs();
                     return ESP_ERR_INVALID_RESPONSE;
                 }
 
@@ -402,26 +375,16 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
                 if (!(cJSON_IsString(ssid) && (ssid->valuestring != NULL))) {
                     ESP_LOGE(TAG,"Failed to get wifi ssid name.");
                     cJSON_Delete(json);
-                    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-                    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-                    esp_wifi_deinit();
-                    esp_event_loop_delete_default();
-                    esp_vfs_littlefs_unregister("web_data");
-                    esp_netif_deinit();
-                    nvs_flash_deinit();
+                    deinit_wifi();
+                    deinit_littlefs();
                     return ESP_ERR_INVALID_RESPONSE;
                 }
                 cJSON *password = cJSON_GetObjectItemCaseSensitive(wifi_item, "password");
                 if (!(cJSON_IsString(password) && (password->valuestring != NULL))) {
                     ESP_LOGE(TAG,"Failed to get wifi password.");
                     cJSON_Delete(json);
-                    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-                    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-                    esp_wifi_deinit();
-                    esp_event_loop_delete_default();
-                    esp_vfs_littlefs_unregister("web_data");
-                    esp_netif_deinit();
-                    nvs_flash_deinit();
+                    deinit_wifi();
+                    deinit_littlefs();
                     return ESP_ERR_INVALID_RESPONSE;
                 }
 
@@ -452,13 +415,8 @@ esp_err_t init_network_functions(uint8_t ssid[32], uint8_t password[64]){
     err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to set wifi config: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
-        esp_wifi_deinit();
-        esp_event_loop_delete_default();
-        esp_vfs_littlefs_unregister("web_data");
-        esp_netif_deinit();
-        nvs_flash_deinit();
+        deinit_wifi();
+        deinit_littlefs();
         return err;
     }else{
         ESP_LOGI(TAG,"OK");
