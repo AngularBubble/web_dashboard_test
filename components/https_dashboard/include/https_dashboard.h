@@ -1,7 +1,12 @@
 #ifndef HTTPS_DASHBOARD_H
 #define HTTPS_DASHBOARD_H
 
-#include "esp_err.h"
+#include <string.h>
+#include <fcntl.h>
+#include "esp_https_server.h"
+#include "esp_check.h"
+#include "esp_vfs.h"
+#include "mdns.h"
 
 #if __cplusplus
 extern "C"
