@@ -16,42 +16,6 @@ static const char *TAG = "SERVER";
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
 
-static esp_err_t init_littlefs()
-{
-    ESP_LOGI(TAG, "Starting littlefs...");
-    esp_vfs_littlefs_conf_t conf = {
-        .base_path = WEB_PAGE_MOUNT_POINT_IN_FS,
-        .partition_label = "www",
-        .format_if_mount_failed = true,
-        .dont_mount = false,
-    };
-
-    esp_err_t err = esp_vfs_littlefs_register(&conf);
-    if (err != ESP_OK) {
-        if (err == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem");
-        } else if (err == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find LittleFS partition");
-        } else {
-            ESP_LOGE(TAG, "Failed to initialize LittleFS (%s)", esp_err_to_name(err));
-        }
-        return err;
-    }
-    
-    size_t total = 0, used = 0;
-    err = esp_littlefs_info(conf.partition_label, &total, &used);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(err));
-        esp_littlefs_format(conf.partition_label);
-    } else {
-        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
-    }
-
-    ESP_LOGI(TAG, "OK");
-    return ESP_OK;
-}
-
-
 typedef struct rest_server_context {
     char base_path[ESP_VFS_PATH_MAX + 1];
     char scratch[SCRATCH_BUFSIZE];
@@ -125,14 +89,62 @@ static esp_err_t rest_common_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t init_littlefs(char *partition_name)
+{
+    ESP_LOGI(TAG, "Starting littlefs...");
+    esp_vfs_littlefs_conf_t conf = {
+        .base_path = WEB_PAGE_MOUNT_POINT_IN_FS,
+        .partition_label = partition_name,
+        .format_if_mount_failed = true,
+        .dont_mount = false,
+    };
 
+    esp_err_t err = esp_vfs_littlefs_register(&conf);
+    if (err != ESP_OK) {
+        if (err == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount or format filesystem");
+        } else if (err == ESP_ERR_NOT_FOUND) {
+            ESP_LOGE(TAG, "Failed to find LittleFS partition");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize LittleFS (%s)", esp_err_to_name(err));
+        }
+        return err;
+    }
+    
+    size_t total = 0, used = 0;
+    err = esp_littlefs_info(conf.partition_label, &total, &used);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(err));
+        esp_littlefs_format(conf.partition_label);
+    } else {
+        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+    }
 
-esp_err_t server_setup(){
+    ESP_LOGI(TAG, "OK");
+    return ESP_OK;
+}
+
+static esp_err_t deinit_littlefs()
+{
+    esp_err_t err = esp_vfs_littlefs_unregister("www");
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failer to unmount littlefs: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t server_setup(char* partition_name, char* host_name, char* instance_name){
 
     ESP_LOGI(TAG,"Incializando o servidor https...");
 
-    init_littlefs();
-
+    esp_err_t ret = init_littlefs(partition_name);
+    if(ret != ESP_OK){
+        ESP_LOGI(TAG, "Failer to register littlefs: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    
     mdns_init();
     mdns_hostname_set(MDNS_HOST_NAME);
     mdns_instance_name_set(MDNS_INSTANCE);
@@ -142,7 +154,7 @@ esp_err_t server_setup(){
         {"path", "/"}
     };
 
-    esp_err_t ret = mdns_service_add("ESP32-WebServer", "_https", "_tcp", 443, serviceTxtData,
+    ret = mdns_service_add("ESP32-WebServer", "_https", "_tcp", 443, serviceTxtData,
                                      sizeof(serviceTxtData) / sizeof(serviceTxtData[0]));
     if(ret != ESP_OK){
         ESP_LOGI(TAG, "Failed to add mdns service: %s", esp_err_to_name(ret));

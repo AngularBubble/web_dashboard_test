@@ -15,9 +15,10 @@ extern "C"
 #endif
 
 /** @brief Initialize and tries to start Wifi.
+ * @param partition_name Its the partition with the web page files defined on the partition table
  * @return ESP_OK if successful, otherwise an error code.
 **/
-esp_err_t server_setup();
+esp_err_t server_setup(char* partition_name);
 
 #if __cplusplus
 }
