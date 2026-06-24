@@ -165,7 +165,7 @@ esp_err_t deinit_wifi()
     return ESP_OK;
 }
 
-esp_err_t init_littlefs()
+static esp_err_t init_littlefs()
 {
     ESP_LOGI(TAG, "Starting littlefs...");
     esp_vfs_littlefs_conf_t conf = {
@@ -191,7 +191,7 @@ esp_err_t init_littlefs()
     return ESP_OK;
 }
 
-esp_err_t deinit_littlefs()
+static esp_err_t deinit_littlefs()
 {
     esp_err_t err = esp_vfs_littlefs_unregister("web_data");
     if(err != ESP_OK){

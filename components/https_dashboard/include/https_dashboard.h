@@ -6,6 +6,7 @@
 #include "esp_https_server.h"
 #include "esp_check.h"
 #include "esp_vfs.h"
+#include "esp_littlefs.h"
 #include "mdns.h"
 
 #if __cplusplus
