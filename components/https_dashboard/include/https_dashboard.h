@@ -38,6 +38,7 @@ esp_err_t update_server_data_values(const char *json_raw_values, const char *jso
  * @param partition_name Its the partition with the web page files defined on the partition table
  * @param host_name Name given for the host page of the website
  * @param instance_name Name giver for the instance of the page
+ * @param mutex Semaphore made to avoid writing on value being used by update_server_data_values()
  * @return ESP_OK if successful, otherwise an error code.
 **/
 esp_err_t server_setup(char* partition_name, char* host_name, char* instance_name, SemaphoreHandle_t mutex);

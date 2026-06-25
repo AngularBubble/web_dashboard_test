@@ -198,8 +198,6 @@ esp_err_t update_server_data_values(const char *json_raw_values, const char *jso
 
 esp_err_t server_setup(char* partition_name, char* host_name, char* instance_name, SemaphoreHandle_t mutex){
 
-    ESP_LOGI(TAG,"Incializando o servidor https...");
-
     if(mutex == NULL){
         ESP_LOGE(TAG,"Semaphore is not valid");
         return ESP_ERR_INVALID_STATE;
@@ -213,6 +211,8 @@ esp_err_t server_setup(char* partition_name, char* host_name, char* instance_nam
         return ret;
     }
 
+    
+    ESP_LOGI(TAG,"Incializando o servidor https...");
     ret = mdns_init();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG,"Failet to init mDNS: %s", esp_err_to_name(ret));
@@ -291,6 +291,8 @@ esp_err_t server_setup(char* partition_name, char* host_name, char* instance_nam
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &common_get_uri);
+
+    ESP_LOGI(TAG, "OK");
 
     return ESP_OK;
 

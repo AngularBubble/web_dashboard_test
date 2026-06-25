@@ -32,7 +32,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t init_wifi()
+static esp_err_t init_wifi()
 {
     ESP_LOGI(TAG, "Initializing wifi component...");
     esp_err_t err = nvs_flash_init();
@@ -128,7 +128,7 @@ esp_err_t init_wifi()
     return ESP_OK;
 }
 
-esp_err_t deinit_wifi()
+static esp_err_t deinit_wifi()
 {
     esp_err_t err = esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler);
     if(err != ESP_OK){
