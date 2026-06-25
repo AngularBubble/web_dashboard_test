@@ -1,60 +1,110 @@
-import './style.css'
-import javascriptLogo from './assets/javascript.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { setupCounter } from './counter.js'
+import './style.css';
+import { Chart } from 'chart.js/auto';
 
-document.querySelector('#app').innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${javascriptLogo}" class="framework" alt="JavaScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.js</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+console.log("Dashboard do Analisador de Energia ativo!");
 
-<div class="ticks"></div>
+// 1. CAPTURA DOS ELEMENTOS DE TEXTO (Grandezas)
+const elTensao = document.getElementById('val-tensao');
+const elCorrente = document.getElementById('val-corrente');
+const elPotencia = document.getElementById('val-potencia');
+const elStatus = document.getElementById('status-chip');
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
-          <img class="button-icon" src="${javascriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+function requisitarGrandezasMedidor() {
+  fetch('/api/v1/dados')
+    .then(response => {
+      if (!response.ok) throw new Error(`Erro na rede: ${response.status}`);
+      return response.json();
+    })
+    .then(dados => {
+      if (dados.tensao !== undefined && elTensao) elTensao.innerHTML = `${dados.tensao.toFixed(1)} <span class="unit">V</span>`;
+      if (dados.corrente !== undefined && elCorrente) elCorrente.innerHTML = `${dados.corrente.toFixed(2)} <span class="unit">A</span>`;
+      if (dados.potencia !== undefined && elPotencia) elPotencia.innerHTML = `${dados.potencia.toFixed(1)} <span class="unit">W</span>`;
+      
+      if (elStatus) {
+        elStatus.textContent = "Conectado";
+        elStatus.style.backgroundColor = "var(--cor-sucesso)";
+      }
+    })
+    .catch(erro => {
+      console.error("Falha ao atualizar dados da API:", erro);
+      if (elStatus) {
+        elStatus.textContent = "Desconectado";
+        elStatus.style.backgroundColor = "#ef4444";
+      }
+    });
+}
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
 
-setupCounter(document.querySelector('#counter'))
+requisitarGrandezasMedidor();
+setInterval(requisitarGrandezasMedidor, 5000);
+
+const ctx = document.getElementById('graficoPotencia').getContext('2d');
+const graficoHarmonicas = new Chart(ctx, {
+  type: 'bar', 
+  data: {
+    
+    labels: ['Fundamental (60Hz)', '2ª Ordem', '3ª Ordem', '4ª Ordem', '5ª Ordem'],
+    datasets: [
+      {
+        label: 'Tensão (%)',
+        data:[],
+        backgroundColor: 'rgba(56, 189, 248, 0.6)', 
+        borderColor: '#38bdf8',
+        borderWidth: 1
+      },
+      {
+        label: 'Corrente (%)',
+        data:[],
+        backgroundColor: 'rgba(16, 185, 129, 0.6)', 
+        borderColor: '#10b981',
+        borderWidth: 1
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: { color: '#f8fafc' } 
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: '#334155' }, 
+        ticks: { color: '#94a3b8' }
+      },
+      y: {
+        min: 0,
+        max: 110, 
+        grid: { color: '#334155' },
+        ticks: { color: '#94a3b8' }
+      }
+    }
+  }
+});
+
+function requisitarHarmonicasFFT() {
+  fetch('/api/v1/fft')
+    .then(response => {
+      if (!response.ok) throw new Error("Erro ao buscar FFT");
+      return response.json();
+    })
+    .then(dados => {
+
+      if (dados.tensao_harm && dados.corrente_harm) {
+        graficoHarmonicas.data.datasets[0].data = dados.tensao_harm;
+        graficoHarmonicas.data.datasets[1].data = dados.corrente_harm;
+        
+
+        graficoHarmonicas.update();
+      }
+    })
+    .catch(erro => console.error("Falha ao atualizar gráfico de harmônicas:", erro));
+}
+
+
+requisitarHarmonicasFFT();
+
+
+setInterval(requisitarHarmonicasFFT, 5000);

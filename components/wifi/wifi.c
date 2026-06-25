@@ -7,6 +7,8 @@
 #define DEFAULT_SSID "GABRIEL"
 #define DEFAULT_PASSWORD "Master1357@"
 
+#define INTERNAL_WIFI_LIST_ADDRESS_SIZE 50
+
 static uint8_t channel_list[CHANNEL_LIST_SIZE] = {1, 6, 11};
 
 static const char *TAG = "WIFI";
@@ -165,12 +167,12 @@ esp_err_t deinit_wifi()
     return ESP_OK;
 }
 
-static esp_err_t init_littlefs()
+static esp_err_t init_littlefs(char* partition_name)
 {
     ESP_LOGI(TAG, "Starting littlefs...");
     esp_vfs_littlefs_conf_t conf = {
         .base_path = "/web_files",
-        .partition_label = "web_data",
+        .partition_label = partition_name,
         .format_if_mount_failed = true,
         .dont_mount = false,
     };
@@ -202,7 +204,7 @@ static esp_err_t deinit_littlefs()
     return ESP_OK;
 }
 
-esp_err_t wifi_connect()
+esp_err_t wifi_connect(char* partition_name, char* file_name)
 {
     esp_err_t err = init_wifi();
     if(err != ESP_OK){
@@ -210,7 +212,7 @@ esp_err_t wifi_connect()
         return err;
     }
 
-    err = init_littlefs();
+    err = init_littlefs(partition_name);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to initialize littlefs");
         return err;
@@ -281,8 +283,10 @@ esp_err_t wifi_connect()
         },
     };
 
+    char file_address[INTERNAL_WIFI_LIST_ADDRESS_SIZE];
+    snprintf(file_address, INTERNAL_WIFI_LIST_ADDRESS_SIZE, "/web_files/%s",file_name);
     ESP_LOGI(TAG, "Trying to open wifi list file...");
-    FILE *f = fopen("/web_files/wifi_list.json", "r");
+    FILE *f = fopen(file_address, "r");
     if (f == NULL) {
         ESP_LOGE(TAG, "Error: Unable to open the file.");
         ESP_LOGI(TAG, "Loading default SSID and Password...");

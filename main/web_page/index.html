@@ -1,13 +1,44 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web_page</title>
+    <link rel="stylesheet" href="/src/style.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.svg">
+    <title>Dashboard de Energia</title>
   </head>
   <body>
-    <div id="app"></div>
+    <header class="navbar">
+      <h2>⚡ Analisador de Potência</h2>
+      <div id="status-chip" class="badge">Conectado</div>
+    </header>
+
+    <main class="dashboard-container">
+      
+      <section class="metrics-grid">
+        <div class="card">
+          <h3>Tensão</h3>
+          <p class="value" id="val-tensao">--.- <span class="unit">V</span></p>
+        </div>
+        <div class="card">
+          <h3>Corrente</h3>
+          <p class="value" id="val-corrente">--.-- <span class="unit">A</span></p>
+        </div>
+        <div class="card" class="card-destaque">
+          <h3>Potência Ativa</h3>
+          <p class="value" id="val-potencia">---- <span class="unit">W</span></p>
+        </div>
+      </section>
+
+      <section class="chart-section">
+        <h3>Histórico de Consumo</h3>
+        <div class="chart-wrapper">
+          <canvas id="graficoPotencia"></canvas>
+        </div>
+      </section>
+
+    </main>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
