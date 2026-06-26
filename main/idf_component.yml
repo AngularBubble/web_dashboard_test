@@ -17,3 +17,4 @@ dependencies:
   joltwallet/littlefs: ==1.22.1
   espressif/cjson: ^1.7.19
   espressif/mdns: '*'
+  espressif/mqtt: '*'

@@ -16,7 +16,7 @@ static const char *TAG = "SERVER";
 char json_raw_values_global[JSON_BUFFER_SIZE] = "{\"tensao\":0,\"corrente\":0,\"potencia\":0}";
 char json_fft_global[JSON_BUFFER_SIZE] = "{\"ordens\":[],\"tensao_harm\":[],\"corrente_harm\":[]}";
 
-SemaphoreHandle_t json_mutex = NULL; 
+static SemaphoreHandle_t json_mutex = NULL; 
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
 
@@ -196,14 +196,9 @@ esp_err_t update_server_data_values(const char *json_raw_values, const char *jso
     return ESP_ERR_TIMEOUT;
 }
 
-esp_err_t server_setup(char* partition_name, char* host_name, char* instance_name, SemaphoreHandle_t mutex){
+esp_err_t server_setup(char* partition_name, char* host_name, char* instance_name){
 
-    if(mutex == NULL){
-        ESP_LOGE(TAG,"Semaphore is not valid");
-        return ESP_ERR_INVALID_STATE;
-    }else{
-        json_mutex = mutex;
-    }
+    json_mutex = xSemaphoreCreateMutex();
 
     esp_err_t ret = init_littlefs(partition_name);
     if(ret != ESP_OK){

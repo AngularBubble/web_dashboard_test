@@ -2,20 +2,29 @@
 #include "wifi.h"
 #include "https_dashboard.h"
 #include "sntp.h"
+#include "mqtt_comp.h"
 
 #define STACK_SIZE 2048
 
 void task_calculo_energia( void * pvParameters );
+
+static esp_mqtt5_user_property_item_t user_property_arr[] = {
+        {"board", "esp32"},
+        {"u", "user"},
+        {"p", "password"}
+    };
+
+#define USE_PROPERTY_ARR_SIZE   sizeof(user_property_arr)/sizeof(esp_mqtt5_user_property_item_t)
 
 void app_main(void)
 {
     static uint8_t ucParameterToPass;
     TaskHandle_t xHandle = NULL;
 
-    SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
     wifi_connect("web_data", "wifi_list.json");
-    server_setup("www","power_analiser","dashboard do medidor e analizador de potencia", mutex);
+    server_setup("www","power_analiser","dashboard do medidor e analizador de potencia");
     sntp_comp_init("pool.ntp.org");
+    mqtt_comp_init(user_property_arr, USE_PROPERTY_ARR_SIZE, "mqtt://test.mosquitto.org", "/test/response", "/topic/will", "i will leave");
     xTaskCreate( task_calculo_energia, "task_calculo_energia", STACK_SIZE, &ucParameterToPass, tskIDLE_PRIORITY, &xHandle );
 }
 
