@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "wifi.h"
 #include "https_dashboard.h"
+#include "sntp.h"
 
 #define STACK_SIZE 2048
 
@@ -14,7 +15,7 @@ void app_main(void)
     SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
     wifi_connect("web_data", "wifi_list.json");
     server_setup("www","power_analiser","dashboard do medidor e analizador de potencia", mutex);
-
+    sntp_comp_init("pool.ntp.org");
     xTaskCreate( task_calculo_energia, "task_calculo_energia", STACK_SIZE, &ucParameterToPass, tskIDLE_PRIORITY, &xHandle );
 }
 

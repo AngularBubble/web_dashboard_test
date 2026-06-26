@@ -14,6 +14,15 @@ extern "C"
 {
 #endif
 
+/** @brief Updates internal timer through SNTP
+ * @return None.
+**/
+void sntp_sync();
+
+/** @brief Initialize and tries to update internal timer with sntp.
+ * @param server_name Server used to sync time
+ * @return ESP_OK if successful, otherwise an error code.
+**/
 esp_err_t sntp_comp_init(char* server_name);
 
 #if __cplusplus
